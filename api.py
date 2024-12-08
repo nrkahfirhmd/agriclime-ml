@@ -129,34 +129,34 @@ def predict(data):
 # FORECAST
 @app.route("/predict", methods=["GET"])
 def run():    
-    # try:
-    data = fetch_data()
-    df = preprocess_data(data)
-    df['time'] = pd.to_datetime(df['time'])
-    
-    to_predict = df.drop(['time', 'weather', 'precip', 'uv'], axis=1)
-    
-    data_scaled = scale_data(pd.DataFrame(to_predict))
-            
-    sequences = create_sequences(data_scaled)
-    
-    sequences_list = np.array(sequences).tolist()
-    
-    prediction = predict(sequences_list[-1])
-    
-    predicted_data = []
-    predicted_data.append(str(df['time'].iloc[-1] + timedelta(hours=1)))
-    predicted_data.append(prediction.tolist())
-    predicted_data.append(df['precip'].iloc[-1])
-    predicted_data.append(df['uv'].iloc[-1])
-    
-    flattened_data = np.concatenate([[predicted_data[0]], np.array(predicted_data[1]).flatten(), [predicted_data[2], predicted_data[3]]])
+    try:
+        data = fetch_data()
+        df = preprocess_data(data)
+        df['time'] = pd.to_datetime(df['time'])
+        
+        to_predict = df.drop(['time', 'weather', 'precip', 'uv'], axis=1)
+        
+        data_scaled = scale_data(pd.DataFrame(to_predict))
+                
+        sequences = create_sequences(data_scaled)
+        
+        sequences_list = np.array(sequences).tolist()
+        
+        prediction = predict(sequences_list[-1])
+        
+        predicted_data = []
+        predicted_data.append(str(df['time'].iloc[-1] + timedelta(hours=1)))
+        predicted_data.append(prediction.tolist())
+        predicted_data.append(df['precip'].iloc[-1])
+        predicted_data.append(df['uv'].iloc[-1])
+        
+        flattened_data = np.concatenate([[predicted_data[0]], np.array(predicted_data[1]).flatten(), [predicted_data[2], predicted_data[3]]])
 
-    flattened_data[7], flattened_data[5] = flattened_data[5], flattened_data[7]
-    
-    return jsonify({"data": flattened_data.tolist()}), 200
-    # except Exception as e:
-    #     return jsonify({"error": str(e)}), 500
+        flattened_data[7], flattened_data[5] = flattened_data[5], flattened_data[7]
+        
+        return jsonify({"data": flattened_data.tolist()}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 # CHECK API HEALTH
 @app.route("/health", methods=["GET"])
