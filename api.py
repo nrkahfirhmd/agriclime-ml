@@ -155,6 +155,65 @@ def run(location):
 MODEL_PATH = "classification.keras"  
 classify = None
 
+@app.route("/forecast/<location>/<hours>", methods=["GET"])
+def run_multiple(location, hours):
+    # try:
+    hours = int(hours)
+    data = fetch_data(location)
+    df = preprocess_data(data)
+    
+    df['time'] = pd.to_datetime(df['time'])
+    
+    predictions, classify = predict_multiple_hours(df, hours)
+    
+    for i in range(len(predictions)):
+        predictions[i] = predictions[i].tolist()
+    
+    return jsonify({"data": predictions, "weather": classify}), 200
+    # except Exception as e:
+    #     return jsonify({"error": str(e)}), 500
+
+def predict_multiple_hours(data, hours=12):
+    predictions = []
+    classify = []
+    
+    to_predict = data.drop(['time', 'weather', 'precip', 'uv'], axis=1)
+    
+    time = data['time'].iloc[-1]
+    
+    for _ in range(hours):
+        sequences = create_sequences(np.array(to_predict))        
+        
+        prediction = predict_forecast(sequences[-1])
+        
+        to_predict = np.vstack([to_predict[1:], prediction[0]])
+        
+        predicted_data = []
+        time = time + timedelta(hours=1)
+        predicted_data.append(str(time))
+        prediction = prediction[0]
+        prediction[0] = round(prediction[0], 1)
+        prediction[1] = round(prediction[1], 1)
+        prediction[2] = round(prediction[2])
+        prediction[3] = round(prediction[3], 2)
+        prediction[4] = round(prediction[4])
+        prediction[5] = round(prediction[5])
+        predicted_data.append(prediction)
+        predicted_data.append(data['precip'].iloc[-1])
+        predicted_data.append(data['uv'].iloc[-1])
+        
+        flattened_data = np.concatenate([[predicted_data[0]], np.array(predicted_data[1]).flatten(), [predicted_data[2], predicted_data[3]]])
+
+        flattened_data[7], flattened_data[5] = flattened_data[5], flattened_data[7]
+        
+        classified = predict_classify([np.array(flattened_data[1:], dtype=float).reshape(-1, 8)])   
+        
+        classify.append(classified)
+        
+        predictions.append(flattened_data)
+    
+    return predictions, classify
+
 try:    
     classify = tf.keras.models.load_model(MODEL_PATH)
 except Exception as e:
