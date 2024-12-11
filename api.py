@@ -157,21 +157,65 @@ classify = None
 
 @app.route("/forecast/<location>/<hours>", methods=["GET"])
 def run_multiple(location, hours):
-    # try:
-    hours = int(hours)
-    data = fetch_data(location)
-    df = preprocess_data(data)
-    
-    df['time'] = pd.to_datetime(df['time'])
-    
-    predictions, classify = predict_multiple_hours(df, hours)
-    
-    for i in range(len(predictions)):
-        predictions[i] = predictions[i].tolist()
-    
-    return jsonify({"data": predictions, "weather": classify}), 200
-    # except Exception as e:
-    #     return jsonify({"error": str(e)}), 500
+    try:
+        hours = int(hours)
+        data = fetch_data(location)
+        df = preprocess_data(data)
+        
+        df['time'] = pd.to_datetime(df['time'])
+        
+        predictions, classify = predict_multiple_hours(df, hours)
+        
+        for i in range(len(predictions)):
+            predictions[i] = predictions[i].tolist()
+        
+        return jsonify({"data": predictions, "weather": classify}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route("/current/<location>", methods=["GET"])
+def get_current_data(location):
+    try:
+        response = requests.get('http://api.weatherapi.com/v1/current.json?key={}&q={}'.format(key, location))
+        
+        data = response.json()
+        
+        field = {
+            'time': data['current']['last_updated'],
+            'temp': data['current']['temp_c'],
+            'wind_speed': data['current']['wind_kph'],
+            'wind_degree': data['current']['wind_degree'],
+            'pressure': data['current']['pressure_in'],
+            'precip': data['current']['precip_in'],
+            'humidity': data['current']['humidity'],
+            'cloud': data['current']['cloud'],
+            'uv': data['current']['uv']
+        }
+        
+        weather = data['current']['condition']['code']
+        
+        weather = transform_label(weather)
+        
+        return jsonify({"data": field, "weather": weather}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+def transform_label(weather):
+    weather_mapping = {
+        'Clear': [1000],
+        'Cloudy': [1003, 1006, 1009],
+        'Drizzle': [1150, 1153, 1168, 1171, 1180],
+        'Rain': [1063, 1183, 1186, 1189, 1192, 1195, 1240, 1243, 1246, 1198, 1201],
+        'Storm/Thunder': [1087, 1273, 1276, 1279, 1282],
+        'Snow': [1066, 1210, 1213, 1216, 1219, 1222, 1225, 1255, 1258, 1261, 1264,],
+        'Sleet': [1069, 1072, 1204, 1207, 1249, 1252],
+        'Fog': [1030, 1135, 1147],
+        'Extreme Weather': [1114, 1117, 1237]
+    }
+
+    flat_mapping = {code: category for category, codes in weather_mapping.items() for code in codes}
+
+    return flat_mapping[weather]
 
 def predict_multiple_hours(data, hours=12):
     predictions = []
