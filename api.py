@@ -36,39 +36,73 @@ def fetch_data(location="Bandung"):
         now = date.now()
         
         if now.hour <= 6:
+            next_date = now.strftime("%Y-%m-%d")
             target_date = (now - timedelta(days=1)).strftime("%Y-%m-%d")
+            response = requests.get('http://api.weatherapi.com/v1/history.json?key={}&q={}&dt={}'.format(key, location, target_date))
+            target_data = response.json()        
+            response = requests.get('http://api.weatherapi.com/v1/history.json?key={}&q={}&dt={}'.format(key, location, next_date))
+            next_data = response.json()       
+            data = fetch_before_six(target_data, next_data)        
         else:
             target_date = now.strftime("%Y-%m-%d")
-            
-        response = requests.get('http://api.weatherapi.com/v1/history.json?key={}&q={}&dt={}'.format(key, location, target_date))
+            response = requests.get('http://api.weatherapi.com/v1/history.json?key={}&q={}&dt={}'.format(key, location, target_date))
+            data = response.json()                        
         
-        response.raise_for_status()
-        data = response.json()
+        response.raise_for_status()           
         
         return data
     except requests.exceptions.RequestException as e:
         print(f"Error fetching data from API: {e}")
-        return None    
+        return None          
+
+def fetch_before_six(data_prev, data_next):
+    now = date.now() 
+    data = []
+    
+    for hour in range(24):
+        data.append(data_prev['forecast']['forecastday'][0]['hour'][hour])
+    
+    for hour in range(now.hour + 1):
+        data.append(data_next['forecast']['forecastday'][0]['hour'][hour])  
+    
+    return data
     
 def preprocess_data(data):
     now = date.now()    
     
     df = []
-    for hour in range(now.hour + 1):
-        field = {
-            'time': data['forecast']['forecastday'][0]['hour'][hour]['time'],
-            'temp': data['forecast']['forecastday'][0]['hour'][hour]['temp_c'],
-            'wind_speed': data['forecast']['forecastday'][0]['hour'][hour]['wind_kph'],
-            'wind_degree': data['forecast']['forecastday'][0]['hour'][hour]['wind_degree'],            
-            'pressure': data['forecast']['forecastday'][0]['hour'][hour]['pressure_in'],
-            'precip': data['forecast']['forecastday'][0]['hour'][hour]['precip_in'],
-            'humidity': data['forecast']['forecastday'][0]['hour'][hour]['humidity'],
-            'cloud': data['forecast']['forecastday'][0]['hour'][hour]['cloud'],
-            'uv': data['forecast']['forecastday'][0]['hour'][hour]['uv'],
-            'weather': data['forecast']['forecastday'][0]['hour'][hour]['condition']['code'],
-        }   
-        
-        df.append(field)            
+    if now.hour <= 6:
+        for hour in range(len(data)):
+            field = {
+                'time': data[hour]['time'],
+                'temp': data[hour]['temp_c'],
+                'wind_speed': data[hour]['wind_kph'],
+                'wind_degree': data[hour]['wind_degree'],            
+                'pressure': data[hour]['pressure_in'],
+                'precip': data[hour]['precip_in'],
+                'humidity': data[hour]['humidity'],
+                'cloud': data[hour]['cloud'],
+                'uv': data[hour]['uv'],
+                'weather': data[hour]['condition']['code'],
+            }   
+            
+            df.append(field)    
+    else:
+        for hour in range(now.hour + 1):
+            field = {
+                'time': data['forecast']['forecastday'][0]['hour'][hour]['time'],
+                'temp': data['forecast']['forecastday'][0]['hour'][hour]['temp_c'],
+                'wind_speed': data['forecast']['forecastday'][0]['hour'][hour]['wind_kph'],
+                'wind_degree': data['forecast']['forecastday'][0]['hour'][hour]['wind_degree'],            
+                'pressure': data['forecast']['forecastday'][0]['hour'][hour]['pressure_in'],
+                'precip': data['forecast']['forecastday'][0]['hour'][hour]['precip_in'],
+                'humidity': data['forecast']['forecastday'][0]['hour'][hour]['humidity'],
+                'cloud': data['forecast']['forecastday'][0]['hour'][hour]['cloud'],
+                'uv': data['forecast']['forecastday'][0]['hour'][hour]['uv'],
+                'weather': data['forecast']['forecastday'][0]['hour'][hour]['condition']['code'],
+            }   
+            
+            df.append(field)            
 
     return pd.DataFrame(df)
 
