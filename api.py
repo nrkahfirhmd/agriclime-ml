@@ -15,19 +15,19 @@ load_dotenv()
 key = os.getenv("API_KEY")
 
 SCALER_PATH = "scaler.pkl"
-scaler = None
+min_max_scaler = None
 
 try:
     with open(SCALER_PATH, 'rb') as f:
-        scaler = pickle.load(f)    
+        min_max_scaler = pickle.load(f)    
 except Exception as e:
     print(f"Error loading model: {e}")
 
 MODEL_PATH = "forecasting.h5"  
-model = None
+forecast = None
 
 try:    
-    model = tf.keras.models.load_model(MODEL_PATH)
+    forecast = tf.keras.models.load_model(MODEL_PATH)
 except Exception as e:
     print(f"Error loading model: {e}")
 
@@ -53,7 +53,7 @@ def fetch_data(location="Bandung"):
         return data
     except requests.exceptions.RequestException as e:
         print(f"Error fetching data from API: {e}")
-        return None
+        return None          
 
 def fetch_before_six(data_prev, data_next):
     now = date.now() 
@@ -106,8 +106,8 @@ def preprocess_data(data):
 
     return pd.DataFrame(df)
 
-def scale_data(data):    
-    return scaler.transform(data)
+def min_max_scale(data):    
+    return min_max_scaler.transform(data)
 
 def create_sequences(data, sequence_length=6):
     X = []    
@@ -116,47 +116,90 @@ def create_sequences(data, sequence_length=6):
 
     return X
 
-def predict(data):    
+def predict_forecast(data):    
     data_array = np.array(data)
     data_reshaped = data_array.reshape(1, 6, 6) 
     
-    prediction = model.predict(data_reshaped)
+    prediction = forecast.predict(data_reshaped)
     
     reshaped_prediction = prediction.reshape(-1, prediction.shape[-1])
     
-    return scaler.inverse_transform(reshaped_prediction)
+    return min_max_scaler.inverse_transform(reshaped_prediction)
 
-# FORECAST
+# PREDICT 1 HOUR
 @app.route("/predict", methods=["GET"])
 def run():    
-    try:
-        data = fetch_data()
-        df = preprocess_data(data)
-        df['time'] = pd.to_datetime(df['time'])
-        
-        to_predict = df.drop(['time', 'weather', 'precip', 'uv'], axis=1)
-        
-        data_scaled = scale_data(pd.DataFrame(to_predict))
-                
-        sequences = create_sequences(data_scaled)
-        
-        sequences_list = np.array(sequences).tolist()
-        
-        prediction = predict(sequences_list[-1])
-        
-        predicted_data = []
-        predicted_data.append(str(df['time'].iloc[-1] + timedelta(hours=1)))
-        predicted_data.append(prediction.tolist())
-        predicted_data.append(df['precip'].iloc[-1])
-        predicted_data.append(df['uv'].iloc[-1])
-        
-        flattened_data = np.concatenate([[predicted_data[0]], np.array(predicted_data[1]).flatten(), [predicted_data[2], predicted_data[3]]])
+    # try:
+    data = fetch_data()
+    df = preprocess_data(data)
+    df['time'] = pd.to_datetime(df['time'])
+    
+    to_predict = df.drop(['time', 'weather', 'precip', 'uv'], axis=1)
+    
+    data_scaled = min_max_scale(pd.DataFrame(to_predict))
+            
+    sequences = create_sequences(data_scaled)
+    
+    sequences_list = np.array(sequences).tolist()
+    
+    prediction = predict_forecast(sequences_list[-1])
+    
+    predicted_data = []
+    predicted_data.append(str(df['time'].iloc[-1] + timedelta(hours=1)))
+    predicted_data.append(prediction.tolist())
+    predicted_data.append(df['precip'].iloc[-1])
+    predicted_data.append(df['uv'].iloc[-1])
+    
+    flattened_data = np.concatenate([[predicted_data[0]], np.array(predicted_data[1]).flatten(), [predicted_data[2], predicted_data[3]]])
 
-        flattened_data[7], flattened_data[5] = flattened_data[5], flattened_data[7]
-        
-        return jsonify({"data": flattened_data.tolist()}), 200
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+    flattened_data[7], flattened_data[5] = flattened_data[5], flattened_data[7]
+    
+    classified = predict_classify([flattened_data[1:]])    
+    
+    return jsonify({"data": flattened_data.tolist(), "weather": classified.tolist()}), 200
+    # except Exception as e:
+    #     return jsonify({"error": str(e)}), 500
+    
+MODEL_PATH = "classification.h5"  
+classify = None
+
+try:    
+    classify = tf.keras.models.load_model(MODEL_PATH)
+except Exception as e:
+    print(f"Error loading model: {e}")
+    
+SCALER_PATH = "standard_scaler.pkl"
+standard_scaler = None
+
+try:
+    with open(SCALER_PATH, 'rb') as f:
+        standard_scaler = pickle.load(f)    
+except Exception as e:
+    print(f"Error loading model: {e}")
+
+def standard_scale(data):
+    return standard_scaler.transform(data)
+
+ENCODER_PATH = "label_encoder.pkl"
+label_encoder = None
+
+try:
+    with open(ENCODER_PATH, 'rb') as f:
+        label_encoder = pickle.load(f)    
+except Exception as e:
+    print(f"Error loading model: {e}")
+
+def weather_label(prediction):
+    return label_encoder.inverse_transform([prediction])[0]
+
+def predict_classify(data):
+    scaled_data = standard_scale(data)
+    
+    result = classify.predict(scaled_data)
+    
+    result_label = weather_label(np.argmax(result[0]))
+    
+    return result[0]
 
 # CHECK API HEALTH
 @app.route("/health", methods=["GET"])
