@@ -146,9 +146,21 @@ def run(location):
 
         flattened_data[7], flattened_data[5] = flattened_data[5], flattened_data[7]
         
+        field = {
+            'time': flattened_data[0],
+            'temp': flattened_data[1],
+            'wind_speed': flattened_data[2],
+            'wind_degree': flattened_data[3],
+            'pressure': flattened_data[4],
+            'precip': flattened_data[5],
+            'humidity': flattened_data[6],
+            'cloud': flattened_data[7],
+            'uv': flattened_data[8]
+        }
+        
         classified = predict_classify([np.array(flattened_data[1:], dtype=float).reshape(-1, 8)])   
         
-        return jsonify({"data": flattened_data.tolist(), "weather": classified}), 200
+        return jsonify({"data": field, "weather": classified}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
     
@@ -164,10 +176,7 @@ def run_multiple(location, hours):
         
         df['time'] = pd.to_datetime(df['time'])
         
-        predictions, classify = predict_multiple_hours(df, hours)
-        
-        for i in range(len(predictions)):
-            predictions[i] = predictions[i].tolist()
+        predictions, classify = predict_multiple_hours(df, hours)                
         
         return jsonify({"data": predictions, "weather": classify}), 200
     except Exception as e:
@@ -250,11 +259,23 @@ def predict_multiple_hours(data, hours=12):
 
         flattened_data[7], flattened_data[5] = flattened_data[5], flattened_data[7]
         
+        field = {
+            'time': flattened_data[0],
+            'temp': flattened_data[1],
+            'wind_speed': flattened_data[2],
+            'wind_degree': flattened_data[3],
+            'pressure': flattened_data[4],
+            'precip': flattened_data[5],
+            'humidity': flattened_data[6],
+            'cloud': flattened_data[7],
+            'uv': flattened_data[8]
+        }
+        
         classified = predict_classify([np.array(flattened_data[1:], dtype=float).reshape(-1, 8)])   
         
         classify.append(classified)
         
-        predictions.append(flattened_data)
+        predictions.append(field)
     
     return predictions, classify
 
