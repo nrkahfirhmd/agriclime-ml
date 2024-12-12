@@ -13,7 +13,7 @@ app = Flask(__name__)
 load_dotenv()
 key = os.getenv("API_KEY")
 
-MODEL_PATH = "forecasting.keras"  
+MODEL_PATH = "model/forecasting.keras"  
 forecast = None
 
 try:    
@@ -164,7 +164,7 @@ def run(location):
     except Exception as e:
         return jsonify({"error": str(e)}), 500
     
-MODEL_PATH = "classification.keras"  
+MODEL_PATH = "model/classification.keras"  
 classify = None
 
 @app.route("/forecast/<location>/<hours>", methods=["GET"])
